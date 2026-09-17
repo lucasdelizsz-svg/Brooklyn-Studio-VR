@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Teste AR — Brooklyn Studio</title>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#111;font-family:Arial,sans-serif}
+#info{position:fixed;z-index:5;left:50%;top:18px;transform:translateX(-50%);background:rgba(0,0,0,.78);color:#fff;padding:12px 16px;border-radius:12px;text-align:center;max-width:90%;line-height:1.35}
+button{border:0;border-radius:10px;padding:12px 18px;font-weight:700;font-size:16px}
+#start{margin-top:8px}
+#status{font-size:13px;margin-top:7px;color:#ddd}
+</style>
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js"}}
+</script>
+</head>
+<body>
+<div id="info">
+  <b>Teste AR — movimento físico</b><br>
+  <span>O celular vai mostrar a câmera real + um objeto virtual.</span><br>
+  <button id="start">INICIAR AR</button>
+  <div id="status">Depois de iniciar: fique parado, depois caminhe 2 passos para frente.</div>
+</div>
+<script type="module">
+import * as THREE from 'three';
+
+const info = document.getElementById('info');
+const start = document.getElementById('start');
+const status = document.getElementById('status');
+
+const renderer = new THREE.WebGLRenderer({antialias:true, alpha:true, powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+renderer.setSize(innerWidth, innerHeight);
+renderer.xr.enabled = true;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(70, innerWidth/innerHeight, 0.01, 50);
+
+const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 1.5);
+scene.add(hemi);
+
+const cube = new THREE.Mesh(
+  new THREE.BoxGeometry(0.5,0.5,0.5),
+  new THREE.MeshStandardMaterial({color:0x22cc66, roughness:.55})
+);
+cube.visible = false;
+scene.add(cube);
+
+const ring = new THREE.Mesh(
+  new THREE.RingGeometry(0.35,0.43,48),
+  new THREE.MeshBasicMaterial({color:0xffcc00, side:THREE.DoubleSide})
+);
+ring.rotation.x = -Math.PI/2;
+ring.visible = false;
+scene.add(ring);
+
+let session = null;
+let referenceSpace = null;
+let startPose = null;
+let maxMove = 0;
+let lastPosition = null;
+
+async function startAR(){
+  if(!navigator.xr){
+    status.textContent = 'navigator.xr não está disponível neste navegador.';
+    return;
+  }
+  const ok = await navigator.xr.isSessionSupported('immersive-ar');
+  if(!ok){
+    status.textContent = 'Este navegador/dispositivo não oferece immersive-ar.';
+    return;
+  }
+
+  session = await navigator.xr.requestSession('immersive-ar', {
+    requiredFeatures: ['local-floor'],
+    optionalFeatures: ['hit-test','dom-overlay','unbounded']
+  });
+
+  await renderer.xr.setSession(session);
+  referenceSpace = await session.requestReferenceSpace('local-floor');
+
+  // Put the test object 2 m in front of the initial viewer position.
+  cube.position.set(0, 1.2, -2.0);
+  ring.position.set(0, 0, -2.0);
+  cube.visible = true;
+  ring.visible = true;
+
+  info.style.display = 'none';
+
+  session.addEventListener('end', () => {
+    info.style.display = '';
+    start.textContent = 'INICIAR AR NOVAMENTE';
+    status.textContent = 'Sessão encerrada.';
+  });
+}
+
+renderer.setAnimationLoop((time, frame) => {
+  if(frame && referenceSpace){
+    const pose = frame.getViewerPose(referenceSpace);
+    if(pose){
+      const p = pose.transform.position;
+      if(!startPose){
+        startPose = {x:p.x,y:p.y,z:p.z};
+        lastPosition = {x:p.x,y:p.y,z:p.z};
+      }
+      const dx=p.x-startPose.x, dy=p.y-startPose.y, dz=p.z-startPose.z;
+      const move=Math.hypot(dx,dy,dz);
+      maxMove=Math.max(maxMove,move);
+
+      if(maxMove > 0.08){
+        status.textContent = `Movimento detectado: ${maxMove.toFixed(2)} m`;
+        status.style.color = '#7CFF9B';
+        info.style.display = '';
+      } else if(!info.style.display || info.style.display === 'none'){
+        status.textContent = 'Mova-se para testar';
+      }
+
+      lastPosition={x:p.x,y:p.y,z:p.z};
+    }
+  }
+  renderer.render(scene,camera);
+});
+
+start.addEventListener('click', async ()=>{
+  try{
+    await startAR();
+  }catch(e){
+    console.error(e);
+    info.style.display='';
+    status.textContent = 'Não foi possível iniciar AR: ' + e.name;
+  }
+});
+
+addEventListener('resize',()=>{
+  camera.aspect=innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+});
+</script>
+</body>
+</html>
