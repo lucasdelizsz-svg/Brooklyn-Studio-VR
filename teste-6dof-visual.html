@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Teste WebXR 6DoF — visual</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#111;font-family:Arial,sans-serif}
+  #info{position:fixed;z-index:5;left:12px;right:12px;top:12px;background:rgba(0,0,0,.78);color:#fff;padding:14px;border-radius:12px;line-height:1.4}
+  #info b{font-size:18px}
+  #start{display:block;margin-top:10px;width:100%;padding:14px;border:0;border-radius:9px;background:#1769e0;color:#fff;font-size:17px;font-weight:bold}
+  #status{margin-top:8px;font-family:monospace;font-size:13px}
+  #exit{display:none;margin-top:8px;width:100%;padding:12px;border:0;border-radius:9px;background:#555;color:#fff;font-size:16px}
+  canvas{display:block}
+</style>
+</head>
+<body>
+<div id="info">
+  <b>Teste visual WebXR 6DoF</b><br>
+  Este teste não carrega a casa. Ele mostra um chão quadriculado e marcadores fixos no espaço.
+  <br><b>Depois de entrar no VR:</b> fique parado 5 s, dê um passo para frente e um para o lado.
+  Se os marcadores mudarem de posição no seu campo de visão enquanto você anda, o rastreamento posicional está funcionando.
+  <button id="start">INICIAR VR 6DoF</button>
+  <button id="exit">SAIR DO VR</button>
+  <div id="status">Verificando WebXR…</div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+const info=document.getElementById('info');
+const start=document.getElementById('start');
+const exit=document.getElementById('exit');
+const status=document.getElementById('status');
+
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x050505);
+
+const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,0.01,100);
+camera.position.set(0,1.6,2.5);
+
+const renderer=new THREE.WebGLRenderer({antialias:false,powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio,1.25));
+renderer.setSize(innerWidth,innerHeight);
+renderer.xr.enabled=true;
+document.body.appendChild(renderer.domElement);
+
+// Luzes
+scene.add(new THREE.HemisphereLight(0xffffff,0x222222,2.2));
+
+// Chão de 10 x 10 m, linhas a cada 0,5 m
+const grid=new THREE.GridHelper(10,20,0x777777,0x333333);
+scene.add(grid);
+
+// Eixos no centro
+scene.add(new THREE.AxesHelper(0.5));
+
+// Marcadores visuais: caixas e pilares em posições conhecidas
+const markerMat=new THREE.MeshStandardMaterial({color:0x00d5ff,roughness:.7});
+const redMat=new THREE.MeshStandardMaterial({color:0xff3030,roughness:.7});
+const greenMat=new THREE.MeshStandardMaterial({color:0x45e06f,roughness:.7});
+
+function box(x,y,z,size,mat){
+  const m=new THREE.Mesh(new THREE.BoxGeometry(size,size,size),mat);
+  m.position.set(x,y,z);
+  scene.add(m);
+}
+box(0,0.5,0,1.0,redMat);          // centro
+box(1,0.5,0,1.0,markerMat);       // 1 m à direita
+box(-1,0.5,0,1.0,markerMat);      // 1 m à esquerda
+box(0,0.5,-1,1.0,greenMat);       // 1 m à frente
+box(0,0.5,1,1.0,greenMat);        // 1 m atrás
+box(0,1.5,-2,0.4,markerMat);      // referência distante
+
+// Pequenas colunas a cada metro para facilitar a percepção de deslocamento
+for(let x=-2;x<=2;x++){
+  for(let z=-2;z<=2;z++){
+    if(x===0 && z===0) continue;
+    const h=0.12;
+    box(x,h/2,z,0.12,markerMat);
+  }
+}
+
+// Placa visual
+const c=document.createElement('canvas');
+c.width=1024;c.height=256;
+const ctx=c.getContext('2d');
+ctx.fillStyle='#111';ctx.fillRect(0,0,c.width,c.height);
+ctx.fillStyle='#fff';ctx.font='bold 72px Arial';ctx.textAlign='center';ctx.fillText('6DoF — MOVA-SE',512,105);
+ctx.font='42px Arial';ctx.fillText('marcadores fixos no espaço',512,170);
+const tex=new THREE.CanvasTexture(c);
+const sign=new THREE.Mesh(
+  new THREE.PlaneGeometry(4,1),
+  new THREE.MeshBasicMaterial({map:tex,side:THREE.DoubleSide})
+);
+sign.position.set(0,2,-3);
+scene.add(sign);
+
+let session=null;
+let lastPos=null;
+let maxMove=0;
+let refSpace=null;
+
+async function startVR(){
+  try{
+    if(!navigator.xr){status.textContent='❌ WebXR não disponível';return;}
+    const supported=await navigator.xr.isSessionSupported('immersive-vr');
+    if(!supported){status.textContent='❌ immersive-vr não disponível';return;}
+
+    session=await navigator.xr.requestSession('immersive-vr',{
+      requiredFeatures:['local-floor'],
+      optionalFeatures:['local','unbounded']
+    });
+    await renderer.xr.setSession(session);
+
+    try{ refSpace=await session.requestReferenceSpace('local-floor'); }
+    catch(e){ refSpace=await session.requestReferenceSpace('local'); }
+
+    session.addEventListener('end',()=>{
+      session=null;
+      refSpace=null;
+      exit.style.display='none';
+      start.style.display='block';
+      status.textContent='Sessão encerrada.';
+    });
+
+    start.style.display='none';
+    exit.style.display='block';
+    info.style.opacity='.75';
+    status.textContent='VR iniciado. Fique parado 5 s e depois caminhe 1–2 passos.';
+  }catch(e){
+    status.textContent='❌ '+e.name+': '+e.message;
+  }
+}
+
+start.onclick=startVR;
+exit.onclick=()=>session?.end();
+
+function animate(){
+  renderer.setAnimationLoop((time,frame)=>{
+    if(frame && refSpace){
+      const pose=frame.getViewerPose(refSpace);
+      if(pose){
+        const p=pose.transform.position;
+        if(!lastPos) lastPos=p;
+        const d=Math.hypot(p.x-lastPos.x,p.y-lastPos.y,p.z-lastPos.z);
+        if(d>maxMove) maxMove=d;
+        // O texto fica na página fora do VR; o objetivo principal é observar os marcadores.
+        if(maxMove>0.08) status.textContent=`Movimento detectado: ${maxMove.toFixed(2)} m`;
+      }
+    }
+    renderer.render(scene,camera);
+  });
+}
+animate();
+
+addEventListener('resize',()=>{
+  camera.aspect=innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+});
+</script>
+</body>
+</html>
