@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Brooklyn Studio VR</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#111;font-family:system-ui,sans-serif}
+canvas{display:block}.menu{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;background:#000d;color:#fff}
+.card{max-width:430px;margin:20px;padding:25px;text-align:center;background:#191919;border-radius:18px}
+button{border:0;border-radius:12px;padding:14px 20px;margin:5px;font-size:16px;font-weight:700}
+#start{background:#fff}#vr{background:#444;color:#fff}
+#joy{display:none;position:fixed;left:22px;bottom:24px;width:118px;height:118px;border-radius:50%;background:#fff2;border:1px solid #fff5;z-index:4;touch-action:none}
+#knob{position:absolute;left:34px;top:34px;width:50px;height:50px;border-radius:50%;background:#fffb}
+</style></head>
+<body>
+<div class="menu" id="menu"><div class="card">
+<h1>Brooklyn Studio</h1><p id="status">Carregando modelo…</p>
+<button id="start">Iniciar exploração</button><button id="vr">Entrar em VR</button>
+<p>Celular: arraste para olhar e use o joystick para caminhar.<br>PC: mouse + W/A/S/D.</p>
+</div></div>
+<div id="joy"><div id="knob"></div></div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x151515);
+const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.03,1000);
+camera.position.set(5.9,1.65,-7.3);
+const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.setSize(innerWidth,innerHeight);
+renderer.xr.enabled=true;renderer.outputColorSpace=THREE.SRGBColorSpace;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;document.body.appendChild(renderer.domElement);
+scene.add(new THREE.HemisphereLight(0xffffff,0x555555,2));
+const dl=new THREE.DirectionalLight(0xffffff,1.4);dl.position.set(5,8,4);scene.add(dl);
+const model=new THREE.Group();scene.add(model);
+new GLTFLoader().load(encodeURI('./Brooklyn Studio Cópia.glb'),g=>{
+ model.add(g.scene);g.scene.traverse(o=>{if(o.isMesh)o.frustumCulled=true});
+ document.querySelector('#status').textContent='Modelo carregado. Pronto para explorar.';
+},undefined,e=>{console.error(e);document.querySelector('#status').textContent='Erro ao carregar o GLB.'});
+let active=false,yaw=0,pitch=0,drag=false,lx=0,ly=0;const keys={};
+addEventListener('keydown',e=>keys[e.code]=true);addEventListener('keyup',e=>keys[e.code]=false);
+renderer.domElement.addEventListener('pointerdown',e=>{drag=true;lx=e.clientX;ly=e.clientY});
+addEventListener('pointerup',()=>drag=false);
+addEventListener('pointermove',e=>{if(!drag||renderer.xr.isPresenting)return;yaw-=(e.clientX-lx)*.004;pitch-=(e.clientY-ly)*.003;pitch=Math.max(-1.4,Math.min(1.4,pitch));lx=e.clientX;ly=e.clientY});
+const joy=document.querySelector('#joy'),knob=document.querySelector('#knob');let jx=0,jy=0,ja=false;
+function j(e){const r=joy.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;let x=e.clientX-cx,y=e.clientY-cy,d=Math.hypot(x,y),m=40;if(d>m){x=x/d*m;y=y/d*m}jx=x/m;jy=y/m;knob.style.transform=`translate(${x}px,${y}px)`}
+joy.addEventListener('pointerdown',e=>{ja=true;joy.setPointerCapture(e.pointerId);j(e)});joy.addEventListener('pointermove',e=>{if(ja)j(e)});
+function ju(){ja=false;jx=jy=0;knob.style.transform='translate(0,0)'}joy.addEventListener('pointerup',ju);joy.addEventListener('pointercancel',ju);
+document.querySelector('#start').onclick=()=>{active=true;menu.style.display='none';joy.style.display='block'};
+document.querySelector('#vr').onclick=async()=>{if(!navigator.xr){alert('WebXR não está disponível. Use Iniciar exploração.');return}try{if(!(await navigator.xr.isSessionSupported('immersive-vr'))){alert('VR imersivo não está disponível neste dispositivo.');return}const s=await navigator.xr.requestSession('immersive-vr',{optionalFeatures:['local-floor','bounded-floor']});renderer.xr.setReferenceSpaceType('local-floor');await renderer.xr.setSession(s);active=true;menu.style.display='none'}catch(e){console.error(e)}};
+const clock=new THREE.Clock();
+renderer.setAnimationLoop(()=>{const dt=Math.min(clock.getDelta(),.05);if(active&&!renderer.xr.isPresenting){camera.rotation.order='YXZ';camera.rotation.y=yaw;camera.rotation.x=pitch;let x=(keys.KeyD?1:0)-(keys.KeyA?1:0)+jx,z=(keys.KeyS?1:0)-(keys.KeyW?1:0)+jy,d=Math.hypot(x,z);if(d){x/=d;z/=d;const v=1.8*dt,sy=Math.sin(yaw),cy=Math.cos(yaw);camera.position.x+=(x*cy-z*sy)*v;camera.position.z+=(x*sy+z*cy)*v;camera.position.y=1.65}}renderer.render(scene,camera)});
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+</script></body></html>
