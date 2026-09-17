@@ -34,7 +34,7 @@ renderer.toneMapping=THREE.ACESFilmicToneMapping;document.body.appendChild(rende
 scene.add(new THREE.HemisphereLight(0xffffff,0x555555,2));
 const dl=new THREE.DirectionalLight(0xffffff,1.4);dl.position.set(5,8,4);scene.add(dl);
 const model=new THREE.Group();scene.add(model);
-new GLTFLoader().load(encodeURI('./Brooklyn Studio Cópia.glb'),g=>{
+new GLTFLoader().load('https://pub-6366228087a648a1ade223d3b3308418.r2.dev/Brooklyn%20Studio%20C%C3%B3pia.glb',g=>{
  model.add(g.scene);g.scene.traverse(o=>{if(o.isMesh)o.frustumCulled=true});
  document.querySelector('#status').textContent='Modelo carregado. Pronto para explorar.';
 },undefined,e=>{console.error(e);document.querySelector('#status').textContent='Erro ao carregar o GLB.'});
