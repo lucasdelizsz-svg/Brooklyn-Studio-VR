@@ -64,6 +64,7 @@ renderer.xr.setReferenceSpaceType('local-floor');
 let xr6Mode=false;
 let xrSession=null;
 let xrModelOffset=null;
+let xrReferenceSpace=null;
 
 scene.add(new THREE.HemisphereLight(0xffffff,0x555555,1.7));
 const dl=new THREE.DirectionalLight(0xffffff,1.0);
@@ -284,12 +285,13 @@ async function enterXR6(){
     menu.style.display='none';
     joy.style.display='none';
     document.querySelector('#vrHelp').style.display='block';
-    document.querySelector('#vrHelp').textContent='VR 6DoF: caminhe devagar e observe se a casa acompanha seus movimentos.';
+    document.querySelector('#vrHelp').textContent='VR 6DoF ativo: caminhe devagar. Sua posição física controla a câmera.';
 
     xrSession=await navigator.xr.requestSession('immersive-vr',{
       requiredFeatures:['local-floor'],
-      optionalFeatures:['bounded-floor']
+      optionalFeatures:['local','unbounded']
     });
+    xrReferenceSpace=await xrSession.requestReferenceSpace('local-floor');
     xrSession.addEventListener('end',exitXR6);
     await renderer.xr.setSession(xrSession);
   }catch(e){
@@ -307,6 +309,7 @@ async function enterXR6(){
 function exitXR6(){
   xr6Mode=false;
   xrSession=null;
+  xrReferenceSpace=null;
   if(xrModelOffset){
     model.position.set(xrModelOffset.x,xrModelOffset.y,xrModelOffset.z);
     xrModelOffset=null;
@@ -339,6 +342,7 @@ renderer.setAnimationLoop(()=>{
   if(active){
     if(xr6Mode){
       // WebXR owns the camera pose, including real-world translation and rotation.
+      // Do not apply joystick/device-orientation movement here.
       renderer.render(scene,camera);
       return;
     }
