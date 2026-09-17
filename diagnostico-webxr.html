@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Diagnóstico WebXR - Brooklyn Studio</title>
+<style>
+body{font-family:system-ui,sans-serif;background:#111;color:#fff;margin:0;padding:20px;line-height:1.45}
+.card{max-width:620px;margin:auto;background:#1d1d1d;border-radius:18px;padding:22px}
+h1{font-size:24px;margin-top:0}button{display:block;width:100%;padding:14px;margin:10px 0;border:0;border-radius:12px;font-size:16px;font-weight:700}#ar{background:#16803c;color:#fff}#vr{background:#2459c5;color:#fff}#spaces{background:#555;color:#fff}.ok{color:#72e38a}.no{color:#ff8080}.wait{color:#ffd166}pre{white-space:pre-wrap;background:#090909;padding:14px;border-radius:12px;min-height:120px}
+</style>
+</head>
+<body><div class="card">
+<h1>Diagnóstico WebXR</h1>
+<p>Este teste não carrega o modelo. Ele apenas verifica o que o celular e o navegador oferecem.</p>
+<div id="summary" class="wait">Verificando…</div>
+<button id="ar">Testar AR</button>
+<button id="vr">Testar VR</button>
+<button id="spaces">Testar espaços de rastreamento</button>
+<pre id="out">Aguardando…</pre>
+</div>
+<script>
+const out=document.getElementById('out'), summary=document.getElementById('summary');
+function line(s,c=''){out.innerHTML+=`<div class="${c}">${s}</div>`}
+async function check(){
+ out.textContent='';
+ if(!navigator.xr){summary.textContent='❌ WebXR não disponível';summary.className='no';line('navigator.xr não existe.','no');return;}
+ line('navigator.xr: disponível','ok');
+ for(const mode of ['immersive-ar','immersive-vr','inline']){
+  try{const ok=await navigator.xr.isSessionSupported(mode);line(`${mode}: ${ok?'✅ disponível':'❌ indisponível'}`,ok?'ok':'no');}
+  catch(e){line(`${mode}: ⚠️ erro ${e.name||e}`,'wait')}
+ }
+ try{
+  const vr=await navigator.xr.isSessionSupported('immersive-vr');
+  const ar=await navigator.xr.isSessionSupported('immersive-ar');
+  summary.textContent=vr?'✅ VR imersivo disponível':ar?'🟡 AR disponível, VR imersivo indisponível':'❌ AR e VR imersivos indisponíveis';
+  summary.className=vr?'ok':ar?'wait':'no';
+ }catch(e){summary.textContent='⚠️ Não foi possível concluir';summary.className='wait'}
+}
+async function start(mode){
+ try{
+  const session=await navigator.xr.requestSession(mode,{optionalFeatures:['local-floor','bounded-floor','unbounded','hit-test']});
+  line(`\n${mode}: sessão iniciada ✅`,'ok');
+  line('enabledFeatures: '+(session.enabledFeatures?session.enabledFeatures.join(', '):'não informado'));
+  for(const space of ['local-floor','local','bounded-floor','unbounded']){
+   try{await session.requestReferenceSpace(space);line(`referenceSpace ${space}: ✅ disponível`,'ok')}
+   catch(e){line(`referenceSpace ${space}: ❌ ${e.name||e}`,'no')}
+  }
+  await session.end(); line('Sessão encerrada.','wait');
+ }catch(e){line(`\n${mode}: ❌ ${e.name||'erro'} — ${e.message||e}`,'no')}
+}
+document.getElementById('ar').onclick=()=>start('immersive-ar');
+document.getElementById('vr').onclick=()=>start('immersive-vr');
+document.getElementById('spaces').onclick=async()=>{
+ if(!navigator.xr){line('WebXR indisponível','no');return}
+ try{const s=await navigator.xr.requestSession('immersive-ar',{optionalFeatures:['local-floor','bounded-floor','unbounded']});line('AR para teste de espaços: sessão iniciada ✅','ok');for(const sp of ['local-floor','local','bounded-floor','unbounded']){try{await s.requestReferenceSpace(sp);line(`${sp}: ✅ disponível`,'ok')}catch(e){line(`${sp}: ❌ ${e.name||e}`,'no')}}await s.end()}catch(e){line('AR: ❌ '+(e.name||e)+' — '+(e.message||e),'no')}
+};
+check();
+</script></body></html>
