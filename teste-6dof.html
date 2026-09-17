@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Teste WebXR 6DoF - Brooklyn Studio</title>
+<style>
+  html,body{margin:0;height:100%;background:#101010;color:#fff;font-family:Arial,sans-serif}
+  body{display:flex;align-items:center;justify-content:center}
+  #ui{width:min(92vw,520px);background:#1b1b1b;border-radius:16px;padding:20px;box-sizing:border-box}
+  h1{font-size:22px;margin:0 0 10px}
+  p{line-height:1.4;color:#ddd}
+  button{width:100%;padding:16px;margin:7px 0;border:0;border-radius:10px;font-size:17px;font-weight:bold}
+  #vr{background:#1769e0;color:white}
+  #end{background:#555;color:white}
+  #status{font-family:monospace;background:#050505;border-radius:10px;padding:12px;white-space:pre-wrap;line-height:1.5}
+  .ok{color:#45e06f}.warn{color:#ffd24a}.bad{color:#ff5b5b}
+  #overlay{position:fixed;left:12px;top:12px;right:12px;z-index:10;
+           background:rgba(0,0,0,.72);border-radius:12px;padding:12px;
+           font:16px monospace;pointer-events:none}
+</style>
+</head>
+<body>
+<div id="ui">
+  <h1>Teste WebXR 6DoF</h1>
+  <p>Este teste não carrega a casa. Ele verifica se o modo VR consegue acompanhar
+  a <b>posição</b> do celular, além da rotação.</p>
+  <div id="status">Verificando WebXR...</div>
+  <button id="vr">INICIAR TESTE VR</button>
+  <button id="end" hidden>SAIR DO VR</button>
+  <p><b>Teste:</b> depois de entrar no VR, fique parado por alguns segundos.
+  Depois dê um passo curto para frente e outro para o lado. Ao sair, veja
+  se os valores X/Z mudaram.</p>
+</div>
+<div id="overlay" hidden></div>
+<canvas id="xrCanvas" style="display:none"></canvas>
+
+<script>
+const statusEl=document.getElementById('status');
+const overlay=document.getElementById('overlay');
+const vrBtn=document.getElementById('vr');
+const endBtn=document.getElementById('end');
+const canvas=document.getElementById('xrCanvas');
+
+let session=null, refSpace=null, gl=null;
+let first=null, last=null, maxDist=0, frames=0;
+
+function line(t,c=''){statusEl.innerHTML+=`<div class="${c}">${t}</div>`}
+async function init(){
+  statusEl.innerHTML='';
+  if(!navigator.xr){line('❌ navigator.xr não disponível','bad'); vrBtn.disabled=true; return;}
+  line('✅ navigator.xr disponível','ok');
+  const ok=await navigator.xr.isSessionSupported('immersive-vr').catch(()=>false);
+  line(ok?'✅ immersive-vr disponível':'❌ immersive-vr indisponível',ok?'ok':'bad');
+  if(!ok) vrBtn.disabled=true;
+}
+function posString(p){
+  return `X: ${p.x.toFixed(3)} m\nY: ${p.y.toFixed(3)} m\nZ: ${p.z.toFixed(3)} m`;
+}
+function resetMeasure(){
+  first=null; last=null; maxDist=0; frames=0;
+}
+async function startVR(){
+  try{
+    resetMeasure();
+    gl=canvas.getContext('webgl',{xrCompatible:true,alpha:false,antialias:false});
+    await gl.makeXRCompatible();
+
+    session=await navigator.xr.requestSession('immersive-vr',{
+      requiredFeatures:['local-floor'],
+      optionalFeatures:['local','unbounded','dom-overlay'],
+      domOverlay:{root:document.body}
+    });
+
+    session.addEventListener('end',()=>{
+      overlay.hidden=true;
+      endBtn.hidden=true;
+      vrBtn.hidden=false;
+      session=null; refSpace=null;
+      line('');
+      line('Sessão encerrada.','ok');
+      if(first && last){
+        const dx=last.x-first.x, dy=last.y-first.y, dz=last.z-first.z;
+        const total=Math.hypot(dx,dy,dz);
+        line(`Deslocamento entre início e fim: ${total.toFixed(3)} m`);
+        line(`ΔX=${dx.toFixed(3)}  ΔY=${dy.toFixed(3)}  ΔZ=${dz.toFixed(3)}`);
+        line(maxDist>0.10
+          ? '✅ Houve mudança de posição detectável (> 10 cm).'
+          : '⚠️ Não foi detectada mudança de posição maior que 10 cm.');
+      }
+    });
+
+    session.updateRenderState({baseLayer:new XRWebGLLayer(session,gl)});
+    try{
+      refSpace=await session.requestReferenceSpace('local-floor');
+      line('✅ local-floor criado','ok');
+    }catch(e){
+      refSpace=await session.requestReferenceSpace('local');
+      line('⚠️ local-floor falhou; usando local','warn');
+    }
+
+    overlay.hidden=false;
+    endBtn.hidden=false;
+    vrBtn.hidden=true;
+    overlay.textContent='Teste 6DoF iniciado…\\nFique parado e depois caminhe 1–2 passos.';
+    session.requestAnimationFrame(onFrame);
+  }catch(e){
+    line('❌ Falha ao iniciar VR: '+e.name+' — '+e.message,'bad');
+  }
+}
+function onFrame(t, xrFrame){
+  if(!session) return;
+  const pose=xrFrame.getViewerPose(refSpace);
+  if(pose){
+    const p=pose.transform.position;
+    const cur={x:p.x,y:p.y,z:p.z};
+    if(!first) first={...cur};
+    last={...cur};
+    frames++;
+    const dx=cur.x-first.x, dy=cur.y-first.y, dz=cur.z-first.z;
+    const d=Math.hypot(dx,dy,dz);
+    if(d>maxDist) maxDist=d;
+    overlay.textContent=
+      `WebXR 6DoF\\n`+
+      `X ${cur.x.toFixed(3)} m\\nY ${cur.y.toFixed(3)} m\\nZ ${cur.z.toFixed(3)} m\\n`+
+      `Δ desde início: ${d.toFixed(3)} m\\n`+
+      `Movimento máximo: ${maxDist.toFixed(3)} m`;
+  }
+  session.requestAnimationFrame(onFrame);
+}
+vrBtn.onclick=startVR;
+endBtn.onclick=()=>session?.end();
+init();
+</script>
+</body>
+</html>
