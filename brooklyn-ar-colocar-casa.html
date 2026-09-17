@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <title>Brooklyn Studio — AR</title>
+  <style>
+    html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;font-family:Arial,sans-serif}
+    canvas{display:block}
+    #ui{position:fixed;inset:0;pointer-events:none;color:#fff;z-index:10}
+    #status{position:absolute;top:18px;left:50%;transform:translateX(-50%);
+      padding:10px 14px;border-radius:14px;background:rgba(0,0,0,.62);
+      font-size:14px;text-align:center;max-width:82%;line-height:1.35}
+    #start,#place,#reset{pointer-events:auto;border:0;border-radius:14px;
+      padding:14px 18px;font-size:16px;font-weight:700;color:#fff;background:#222}
+    #start{position:absolute;left:50%;bottom:28px;transform:translateX(-50%)}
+    #place{position:absolute;left:50%;bottom:28px;transform:translateX(-50%);display:none;background:#1f7a45}
+    #reset{position:absolute;right:16px;bottom:18px;display:none;font-size:14px;padding:10px 12px}
+    #hint{position:absolute;left:50%;bottom:88px;transform:translateX(-50%);
+      display:none;padding:8px 12px;border-radius:12px;background:rgba(0,0,0,.55);
+      font-size:13px;text-align:center;white-space:nowrap}
+  </style>
+</head>
+<body>
+  <div id="ui">
+    <div id="status">AR pronto. Toque para começar.</div>
+    <div id="hint">Aponte para o chão até aparecer o marcador.</div>
+    <button id="start">ENTRAR EM AR</button>
+    <button id="place">COLOCAR CASA AQUI</button>
+    <button id="reset">REPOSICIONAR</button>
+  </div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+const MODEL_URL =
+  'https://pub-6366228087a648a1ade223d3b3308418.r2.dev/Brooklyn%20Studio%20C%C3%B3pia.glb';
+
+const statusEl = document.getElementById('status');
+const startBtn = document.getElementById('start');
+const placeBtn = document.getElementById('place');
+const resetBtn = document.getElementById('reset');
+const hintEl = document.getElementById('hint');
+
+let scene, camera, renderer, modelRoot;
+let xrSession = null;
+let hitTestSource = null;
+let localFloorSpace = null;
+let viewerSpace = null;
+let hitMatrix = new THREE.Matrix4();
+let surfaceFound = false;
+let placed = false;
+let reticle;
+
+init();
+
+function setStatus(text) {
+  statusEl.textContent = text;
+}
+
+function init() {
+  scene = new THREE.Scene();
+
+  camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.01, 1000);
+
+  renderer = new THREE.WebGLRenderer({
+    antialias: false,
+    alpha: true,
+    powerPreference: 'high-performance'
+  });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.25));
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.xr.enabled = true;
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.0;
+  renderer.xr.setReferenceSpaceType('local-floor');
+  document.body.appendChild(renderer.domElement);
+
+  const hemi = new THREE.HemisphereLight(0xffffff, 0x777777, 1.7);
+  scene.add(hemi);
+
+  const dir = new THREE.DirectionalLight(0xffffff, 1.1);
+  dir.position.set(5, 8, 3);
+  scene.add(dir);
+
+  // Marcador simples de superfície.
+  const ring = new THREE.RingGeometry(0.18, 0.22, 32).rotateX(-Math.PI / 2);
+  const mat = new THREE.MeshBasicMaterial({
+    color: 0x00ff88,
+    transparent: true,
+    opacity: 0.9,
+    side: THREE.DoubleSide
+  });
+  reticle = new THREE.Mesh(ring, mat);
+  reticle.visible = false;
+  scene.add(reticle);
+
+  // A casa fica em um grupo independente da câmera.
+  modelRoot = new THREE.Group();
+  modelRoot.visible = false;
+  scene.add(modelRoot);
+
+  loadModel();
+
+  renderer.setAnimationLoop(render);
+  addEventListener('resize', onResize);
+
+  startBtn.addEventListener('click', startAR);
+  placeBtn.addEventListener('click', placeHouse);
+  resetBtn.addEventListener('click', resetPlacement);
+}
+
+async function loadModel() {
+  setStatus('Carregando a casa…');
+  const loader = new GLTFLoader();
+
+  try {
+    const gltf = await loader.loadAsync(MODEL_URL);
+    const model = gltf.scene;
+
+    // Mantém a escala original do arquivo.
+    model.position.set(0, 0, 0);
+    model.rotation.set(0, 0, 0);
+
+    model.traverse(obj => {
+      if (obj.isMesh) {
+        obj.frustumCulled = true;
+        if (obj.material) {
+          obj.material.needsUpdate = false;
+        }
+      }
+    });
+
+    modelRoot.add(model);
+    setStatus('Casa carregada. Toque em ENTRAR EM AR.');
+  } catch (err) {
+    console.error(err);
+    setStatus('Erro ao carregar a casa. Verifique a conexão.');
+  }
+}
+
+async function startAR() {
+  if (!navigator.xr) {
+    setStatus('Este navegador não disponibiliza WebXR.');
+    return;
+  }
+
+  let supported = false;
+  try {
+    supported = await navigator.xr.isSessionSupported('immersive-ar');
+  } catch (e) {}
+
+  if (!supported) {
+    setStatus('AR imersivo não é compatível neste aparelho/navegador.');
+    return;
+  }
+
+  try {
+    xrSession = await navigator.xr.requestSession('immersive-ar', {
+      requiredFeatures: ['local-floor', 'hit-test'],
+      optionalFeatures: ['unbounded', 'dom-overlay'],
+      domOverlay: { root: document.body }
+    });
+
+    await renderer.xr.setSession(xrSession);
+
+    localFloorSpace = renderer.xr.getReferenceSpace();
+    viewerSpace = await xrSession.requestReferenceSpace('viewer');
+
+    hitTestSource = await xrSession.requestHitTestSource({
+      space: viewerSpace
+    });
+
+    xrSession.addEventListener('end', onSessionEnd);
+
+    startBtn.style.display = 'none';
+    placeBtn.style.display = 'none';
+    resetBtn.style.display = 'none';
+    hintEl.style.display = 'block';
+
+    setStatus('AR ativo. Aponte o celular para o chão.');
+  } catch (err) {
+    console.error(err);
+    setStatus('Não foi possível iniciar o AR: ' + (err.message || err.name));
+  }
+}
+
+function placeHouse() {
+  if (!surfaceFound || !reticle.visible || !modelRoot.children.length) return;
+
+  // Copia a transformação do ponto detectado pelo hit-test.
+  modelRoot.position.copy(reticle.position);
+  modelRoot.quaternion.copy(reticle.quaternion);
+
+  // O modelo fica fixo no reference space do AR.
+  modelRoot.visible = true;
+  placed = true;
+
+  placeBtn.style.display = 'none';
+  resetBtn.style.display = 'block';
+  hintEl.style.display = 'none';
+  setStatus('Casa colocada. Agora caminhe devagar ao redor dela.');
+}
+
+function resetPlacement() {
+  modelRoot.visible = false;
+  placed = false;
+  resetBtn.style.display = 'none';
+  hintEl.style.display = 'block';
+  setStatus('Aponte para outro ponto no chão.');
+}
+
+function onSessionEnd() {
+  xrSession = null;
+  hitTestSource = null;
+  localFloorSpace = null;
+  viewerSpace = null;
+  surfaceFound = false;
+  reticle.visible = false;
+  modelRoot.visible = false;
+  placed = false;
+
+  startBtn.style.display = 'block';
+  placeBtn.style.display = 'none';
+  resetBtn.style.display = 'none';
+  hintEl.style.display = 'none';
+  setStatus('Sessão AR encerrada.');
+}
+
+function render(time, frame) {
+  if (frame && xrSession && localFloorSpace && hitTestSource && !placed) {
+    const results = frame.getHitTestResults(hitTestSource);
+
+    if (results.length > 0) {
+      const pose = results[0].getPose(localFloorSpace);
+
+      if (pose) {
+        hitMatrix.fromArray(pose.transform.matrix);
+        reticle.position.setFromMatrixPosition(hitMatrix);
+        reticle.quaternion.setFromRotationMatrix(hitMatrix);
+        reticle.visible = true;
+        surfaceFound = true;
+
+        placeBtn.style.display = 'block';
+        hintEl.style.display = 'none';
+        setStatus('Superfície encontrada. Toque em COLOCAR CASA AQUI.');
+      }
+    } else {
+      surfaceFound = false;
+      reticle.visible = false;
+      placeBtn.style.display = 'none';
+      hintEl.style.display = 'block';
+      setStatus('Aponte o celular para o chão até encontrar uma superfície.');
+    }
+  }
+
+  renderer.render(scene, camera);
+}
+
+function onResize() {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+}
+</script>
+</body>
+</html>
