@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Brooklyn Studio — AR teste</title>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#111;font-family:system-ui,sans-serif}
+canvas{display:block;width:100%;height:100%}
+#menu{position:fixed;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg,#050505e8,#151515f5);color:#fff}
+.card{width:min(430px,calc(100% - 40px));box-sizing:border-box;padding:30px 24px;text-align:center;background:#191919;border:1px solid #ffffff18;border-radius:22px;box-shadow:0 18px 60px #0008}
+.logo{width:72px;height:72px;margin:0 auto 18px;border-radius:18px;background:linear-gradient(145deg,#20b65a,#11743a);display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:900;letter-spacing:-2px}
+h1{margin:0 0 8px;font-size:29px;letter-spacing:-.6px}
+.sub{margin:0 0 22px;color:#bbb;font-size:15px;line-height:1.45}
+#status{margin:0 0 14px;font-size:14px;color:#ddd;line-height:1.4}
+button{border:0;border-radius:13px;padding:15px 20px;margin:5px;font-size:16px;font-weight:800}
+#ar{width:100%;margin:0;background:#20b65a;color:#fff;transition:opacity .2s}
+#ar:disabled{opacity:.55}
+.note{margin:18px 0 0;color:#888;font-size:12px;line-height:1.4}
+#hint{position:fixed;z-index:5;left:50%;top:14px;transform:translateX(-50%);display:none;color:#fff;background:#000b;padding:9px 13px;border-radius:10px;text-align:center;font-size:13px}
+</style>
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"}}
+</script>
+</head>
+<body>
+<div id="menu"><div class="card">
+<div class="logo">BS</div>
+<h1>Brooklyn Studio</h1>
+<p class="sub">Aponte para o chão do quarto e toque no local onde deseja colocar a casa.</p>
+<p id="status">Toque no botão para começar.</p>
+<button id="ar">CARREGAR MODELO</button>
+<p class="note">Depois de entrar em AR, toque no chão para posicionar a casa.</p>
+</div></div>
+<div id="hint">Aponte para o chão e toque onde deseja colocar a casa</div>
+<script type="module">
+import * as THREE from 'three';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+
+const GLB_URL='https://pub-6366228087a648a1ade223d3b3308418.r2.dev/Brooklyn-Studio-otimizado-v2.glb';
+const menu=document.querySelector('#menu'),status=document.querySelector('#status'),arBtn=document.querySelector('#ar'),hint=document.querySelector('#hint');
+
+const scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.01,100);
+const renderer=new THREE.WebGLRenderer({antialias:false,alpha:true,powerPreference:'high-performance',precision:'mediump'});
+renderer.setPixelRatio(Math.min(devicePixelRatio,1.25));
+renderer.setSize(innerWidth,innerHeight);
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+renderer.toneMapping=THREE.NoToneMapping;
+renderer.xr.enabled=true;
+renderer.xr.setReferenceSpaceType('local-floor');
+document.body.appendChild(renderer.domElement);
+
+scene.add(new THREE.HemisphereLight(0xffffff,0x666666,1.8));
+
+const model=new THREE.Group();
+scene.add(model);
+model.visible=false;
+
+let modelReady=false,loading=false,arSession=false,hitTestSource=null,placed=false;
+const loader=new GLTFLoader();
+
+function loadModel(){
+  if(loading||modelReady)return;
+  loading=true;
+  arBtn.disabled=true;
+  arBtn.textContent='CARREGANDO…';
+  status.textContent='Baixando a casa 3D…';
+  loader.load(GLB_URL,g=>{
+    model.add(g.scene);
+    g.scene.traverse(o=>{
+      if(o.isMesh){
+        o.frustumCulled=true;
+        if(o.material)o.material.precision='mediump';
+        o.matrixAutoUpdate=false;
+      }
+    });
+    modelReady=true;
+    loading=false;
+    arBtn.disabled=false;
+    arBtn.textContent='ENTRAR EM AR';
+    status.textContent='Modelo pronto. Agora entre em AR.';
+  },xhr=>{
+    if(xhr.total)status.textContent=`Baixando a casa 3D… ${Math.round(xhr.loaded/xhr.total*100)}%`;
+  },err=>{
+    console.error(err);
+    loading=false;
+    arBtn.disabled=false;
+    arBtn.textContent='TENTAR NOVAMENTE';
+    status.textContent='Não foi possível carregar o modelo.';
+  });
+}
+
+arBtn.addEventListener('click',async()=>{
+  if(!modelReady){loadModel();return;}
+  if(!navigator.xr||!(await navigator.xr.isSessionSupported('immersive-ar'))){
+    status.textContent='Este navegador/dispositivo não oferece AR imersivo.';
+    return;
+  }
+  try{
+    arBtn.disabled=true;
+    arBtn.textContent='ABRINDO AR…';
+    const session=await navigator.xr.requestSession('immersive-ar',{
+      requiredFeatures:['local-floor','hit-test'],
+      optionalFeatures:['unbounded']
+    });
+    await renderer.xr.setSession(session);
+    arSession=true;
+    menu.style.display='none';
+    hint.style.display='block';
+
+    const viewerSpace=await session.requestReferenceSpace('viewer');
+    hitTestSource=await session.requestHitTestSource({space:viewerSpace});
+
+    const controller=renderer.xr.getController(0);
+    controller.addEventListener('select',()=>{
+      if(!lastHitPose)return;
+      const p=lastHitPose.transform.position;
+      model.position.set(p.x,p.y,p.z);
+      model.rotation.set(0,0,0);
+      model.visible=true;
+      placed=true;
+      status.textContent='Casa posicionada.';
+      hint.textContent='Casa posicionada • toque novamente no chão para mudar';
+    });
+    scene.add(controller);
+
+    session.addEventListener('end',()=>{
+      if(hitTestSource){hitTestSource.cancel();hitTestSource=null;}
+      arSession=false;
+      placed=false;
+      model.visible=false;
+      hint.style.display='none';
+      menu.style.display='flex';
+      arBtn.disabled=false;
+      arBtn.textContent='ENTRAR EM AR';
+      status.textContent='Sessão encerrada.';
+    });
+  }catch(e){
+    console.error(e);
+    arBtn.disabled=false;
+    arBtn.textContent='ENTRAR EM AR';
+    status.textContent='Não foi possível iniciar AR: '+e.name;
+  }
+});
+
+let lastHitPose=null;
+renderer.setAnimationLoop((timestamp,frame)=>{
+  if(frame&&hitTestSource){
+    const referenceSpace=renderer.xr.getReferenceSpace();
+    const hits=frame.getHitTestResults(hitTestSource);
+    if(hits.length){
+      const pose=hits[0].getPose(referenceSpace);
+      lastHitPose=pose;
+    }else{
+      lastHitPose=null;
+    }
+  }
+  if(modelReady||arSession)renderer.render(scene,camera);
+});
+
+addEventListener('resize',()=>{
+  camera.aspect=innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+});
+</script>
+</body>
+</html>
