@@ -35,7 +35,7 @@ const menu=document.querySelector('#menu'),status=document.querySelector('#statu
 const scene=new THREE.Scene();
 const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.01,1000);
 const renderer=new THREE.WebGLRenderer({antialias:false,alpha:true,powerPreference:'high-performance',precision:'mediump'});
-renderer.setPixelRatio(Math.min(devicePixelRatio,1.25)); renderer.setSize(innerWidth,innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio,1.0)); renderer.setSize(innerWidth,innerHeight);
 renderer.outputColorSpace=THREE.SRGBColorSpace; renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1;
 renderer.xr.enabled=true; renderer.xr.setReferenceSpaceType('local-floor'); document.body.appendChild(renderer.domElement);
 scene.add(new THREE.HemisphereLight(0xffffff,0x666666,1.6));
