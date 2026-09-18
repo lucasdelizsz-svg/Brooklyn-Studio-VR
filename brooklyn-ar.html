@@ -129,6 +129,11 @@ exitBtn.addEventListener('click',()=>{\n  if(renderer.xr.isPresenting) renderer.
   if(modelReady||arSession)renderer.render(scene,camera);
 });
 
+addEventListener('pagehide',()=>{
+  if(renderer.xr.isPresenting) return;
+  renderer.dispose();
+});
+
 addEventListener('resize',()=>{
   camera.aspect=innerWidth/innerHeight;
   camera.updateProjectionMatrix();
