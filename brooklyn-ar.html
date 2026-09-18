@@ -14,7 +14,8 @@ h1{margin:0 0 8px;font-size:29px;letter-spacing:-.6px}
 .sub{margin:0 0 22px;color:#bbb;font-size:15px;line-height:1.45}
 #status{margin:0 0 14px;font-size:14px;color:#ddd;line-height:1.4}
 button{border:0;border-radius:13px;padding:15px 20px;margin:5px;font-size:16px;font-weight:800}
-#ar{width:100%;margin:0;background:#20b65a;color:#fff}
+#ar{width:100%;margin:0;background:#20b65a;color:#fff;transition:opacity .2s}
+#ar:disabled{opacity:.55}
 .note{margin:18px 0 0;color:#888;font-size:12px;line-height:1.4}
 #hint{position:fixed;z-index:5;left:50%;top:14px;transform:translateX(-50%);display:none;color:#fff;background:#000b;padding:9px 13px;border-radius:10px;text-align:center;font-size:13px}
 </style>
@@ -27,8 +28,8 @@ button{border:0;border-radius:13px;padding:15px 20px;margin:5px;font-size:16px;f
 <div class="logo">BS</div>
 <h1>Brooklyn Studio</h1>
 <p class="sub">Visualize a casa em realidade aumentada no espaço ao seu redor.</p>
-<p id="status">Toque no botão para carregar o modelo.</p>
-<button id="ar">ENTRAR EM AR</button>
+<p id="status">Toque no botão para começar.</p>
+<button id="ar">CARREGAR MODELO</button>
 <p class="note">A câmera mostrará o ambiente real enquanto a casa virtual permanece posicionada no espaço.</p>
 </div></div>
 <div id="hint">AR ativo • caminhe devagar e observe a casa em relação ao ambiente real</div>
@@ -63,7 +64,8 @@ function loadModel(){
   if(loading||modelReady)return;
   loading=true;
   arBtn.disabled=true;
-  status.textContent='Carregando modelo…';
+  arBtn.textContent='CARREGANDO…';
+  status.textContent='Baixando a casa 3D…';
   loader.load(GLB_URL,g=>{
     model.add(g.scene);
     g.scene.traverse(o=>{
@@ -77,14 +79,16 @@ function loadModel(){
     modelReady=true;
     loading=false;
     arBtn.disabled=false;
-    status.textContent='Modelo carregado. Toque em ENTRAR EM AR.';
+    arBtn.textContent='ENTRAR EM AR';
+    status.textContent='Modelo pronto. Agora entre em AR.';
   },xhr=>{
-    if(xhr.total)status.textContent=`Carregando modelo… ${Math.round(xhr.loaded/xhr.total*100)}%`;
+    if(xhr.total)status.textContent=`Baixando a casa 3D… ${Math.round(xhr.loaded/xhr.total*100)}%`;
   },err=>{
     console.error(err);
     loading=false;
     arBtn.disabled=false;
-    status.textContent='Erro ao carregar o modelo 3D.';
+    arBtn.textContent='TENTAR NOVAMENTE';
+    status.textContent='Não foi possível carregar o modelo.';
   });
 }
 
@@ -95,6 +99,8 @@ arBtn.addEventListener('click',async()=>{
     return;
   }
   try{
+    arBtn.disabled=true;
+    arBtn.textContent='ABRINDO AR…';
     const session=await navigator.xr.requestSession('immersive-ar',{
       requiredFeatures:['local-floor'],
       optionalFeatures:['hit-test','unbounded']
@@ -107,10 +113,14 @@ arBtn.addEventListener('click',async()=>{
       arSession=false;
       hint.style.display='none';
       menu.style.display='flex';
+      arBtn.disabled=false;
+      arBtn.textContent='ENTRAR EM AR';
       status.textContent='Sessão encerrada.';
     });
   }catch(e){
     console.error(e);
+    arBtn.disabled=false;
+    arBtn.textContent='ENTRAR EM AR';
     status.textContent='Não foi possível iniciar AR: '+e.name;
   }
 });
