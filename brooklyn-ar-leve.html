@@ -31,7 +31,7 @@ button{border:0;border-radius:12px;padding:14px 20px;margin:6px;font-size:16px;f
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 
-const GLB_URL='https://pub-6366228087a648a1ade223d3b3308418.r2.dev/Brooklyn%20Studio%20C%C3%B3pia.glb';
+const GLB_URL='https://pub-6366228087a648a1ade223d3b3308418.r2.dev/Brooklyn%2520Studio%2520C%25C3%25B3pia%2520-%2520otimizado.glb';
 
 const menu=document.querySelector('#menu');
 const status=document.querySelector('#status');
@@ -63,7 +63,6 @@ scene.add(light);
 
 const model=new THREE.Group();
 scene.add(model);
-
 model.position.set(-5.9,0,7.3);
 
 let modelReady=false;
@@ -85,7 +84,6 @@ function loadModel(){
     modelReady=true;
     loading=false;
     status.textContent='Modelo carregado. Toque em ENTRAR EM AR.';
-    arBtn.disabled=false;
   },xhr=>{
     if(xhr.total) status.textContent=`Carregando modelo 3D… ${Math.round(xhr.loaded/xhr.total*100)}%`;
   },err=>{
@@ -107,7 +105,7 @@ async function enterAR(){
   }
 
   try{
-    session=await navigator.xr.requestSession('immersive-ar',{
+    const session=await navigator.xr.requestSession('immersive-ar',{
       requiredFeatures:['local-floor'],
       optionalFeatures:['hit-test','unbounded','dom-overlay'],
       domOverlay:{root:document.body}
@@ -127,7 +125,6 @@ async function enterAR(){
   }
 }
 
-let session=null;
 arBtn.addEventListener('click',enterAR);
 
 renderer.setAnimationLoop(()=>{
