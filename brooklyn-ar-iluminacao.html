@@ -17,7 +17,8 @@ button{border:0;border-radius:13px;padding:15px 20px;margin:5px;font-size:16px;f
 #ar{width:100%;margin:0;background:#20b65a;color:#fff;transition:opacity .2s}
 #ar:disabled{opacity:.55}
 .note{margin:18px 0 0;color:#888;font-size:12px;line-height:1.4}
-#hint{position:fixed;z-index:5;left:50%;top:14px;transform:translateX(-50%);display:none;color:#fff;background:#000b;padding:9px 13px;border-radius:10px;text-align:center;font-size:13px}\n#exit{position:fixed;z-index:6;right:14px;top:14px;display:none;background:#000b;color:#fff;padding:10px 14px;border:1px solid #fff3;border-radius:10px;font-size:13px;font-weight:800}
+#hint{position:fixed;z-index:5;left:50%;top:14px;transform:translateX(-50%);display:none;color:#fff;background:#000b;padding:9px 13px;border-radius:10px;text-align:center;font-size:13px}
+#exit{position:fixed;z-index:6;right:14px;top:14px;display:none;background:#000b;color:#fff;padding:10px 14px;border:1px solid #fff3;border-radius:10px;font-size:13px;font-weight:800}
 </style>
 <script type="importmap">
 {"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"}}
@@ -46,12 +47,16 @@ const renderer=new THREE.WebGLRenderer({antialias:false,alpha:true,powerPreferen
 renderer.setPixelRatio(Math.min(devicePixelRatio,1.25));
 renderer.setSize(innerWidth,innerHeight);
 renderer.outputColorSpace=THREE.SRGBColorSpace;
-renderer.toneMapping=THREE.ACESFilmicToneMapping;\nrenderer.toneMappingExposure=1.15;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=1.15;
 renderer.xr.enabled=true;
 renderer.xr.setReferenceSpaceType('local-floor');
 document.body.appendChild(renderer.domElement);
 
-scene.add(new THREE.HemisphereLight(0xffffff,0x555555,1.25));\nconst keyLight=new THREE.DirectionalLight(0xffffff,1.8);\nkeyLight.position.set(4,8,3);\nscene.add(keyLight);
+scene.add(new THREE.HemisphereLight(0xffffff,0x555555,1.25));
+const keyLight=new THREE.DirectionalLight(0xffffff,1.8);
+keyLight.position.set(4,8,3);
+scene.add(keyLight);
 
 const model=new THREE.Group();
 scene.add(model);
@@ -108,7 +113,8 @@ arBtn.addEventListener('click',async()=>{
     await renderer.xr.setSession(session);
     arSession=true;
     menu.style.display='none';
-    hint.style.display='block';\n    exitBtn.style.display='block';
+    hint.style.display='block';
+    exitBtn.style.display='block';
     session.addEventListener('end',()=>{
       arSession=false;
       hint.style.display='none';
@@ -125,7 +131,11 @@ arBtn.addEventListener('click',async()=>{
   }
 });
 
-exitBtn.addEventListener('click',()=>{\n  if(renderer.xr.isPresenting) renderer.xr.getSession()?.end();\n});\n\nrenderer.setAnimationLoop(()=>{
+exitBtn.addEventListener('click',()=>{
+  if(renderer.xr.isPresenting) renderer.xr.getSession()?.end();
+});
+
+renderer.setAnimationLoop(()=>{
   if(modelReady||arSession)renderer.render(scene,camera);
 });
 
