@@ -29,37 +29,19 @@ button{border:0;border-radius:12px;padding:14px 20px;margin:6px;font-size:16px;f
 <script type="module">
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
-
 const GLB_URL='https://pub-6366228087a648a1ade223d3b3308418.r2.dev/Brooklyn%2520Studio%2520C%25C3%25B3pia%2520-%2520otimizado.glb';
 const menu=document.querySelector('#menu'),status=document.querySelector('#status'),arBtn=document.querySelector('#ar'),hint=document.querySelector('#hint');
-const scene=new THREE.Scene();
-const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.01,1000);
+const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.01,1000);
 const renderer=new THREE.WebGLRenderer({antialias:false,alpha:true,powerPreference:'high-performance',precision:'mediump'});
-renderer.setPixelRatio(Math.min(devicePixelRatio,1.0)); renderer.setSize(innerWidth,innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio,1.25)); renderer.setSize(innerWidth,innerHeight);
 renderer.outputColorSpace=THREE.SRGBColorSpace; renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1;
 renderer.xr.enabled=true; renderer.xr.setReferenceSpaceType('local-floor'); document.body.appendChild(renderer.domElement);
 scene.add(new THREE.HemisphereLight(0xffffff,0x666666,1.6));
 const light=new THREE.DirectionalLight(0xffffff,1.2); light.position.set(5,8,4); scene.add(light);
 const model=new THREE.Group(); scene.add(model); model.position.set(-5.9,0,7.3);
-let modelReady=false, loading=false;
-const loader=new GLTFLoader();
-function loadModel(){
- if(loading||modelReady)return; loading=true; status.textContent='Carregando modelo…';
- loader.load(GLB_URL,g=>{
-  model.add(g.scene); g.scene.traverse(o=>{if(o.isMesh){o.frustumCulled=true;if(o.material)o.material.precision='mediump';}});
-  modelReady=true; loading=false; status.textContent='Modelo carregado. Toque em ENTRAR EM AR.';
- },xhr=>{if(xhr.total)status.textContent=`Carregando modelo… ${Math.round(xhr.loaded/xhr.total*100)}%`;},
- err=>{console.error(err);loading=false;status.textContent='Erro ao carregar o modelo 3D.';});
-}
-arBtn.addEventListener('click',async()=>{
- if(!modelReady){if(!loading)loadModel();else status.textContent='Aguarde o modelo terminar de carregar.';return;}
- if(!navigator.xr||!(await navigator.xr.isSessionSupported('immersive-ar'))){status.textContent='Este navegador/dispositivo não oferece AR imersivo.';return;}
- try{
-  const session=await navigator.xr.requestSession('immersive-ar',{requiredFeatures:['local-floor'],optionalFeatures:['hit-test','unbounded','dom-overlay'],domOverlay:{root:document.body}});
-  await renderer.xr.setSession(session); menu.style.display='none'; hint.style.display='block';
-  session.addEventListener('end',()=>{hint.style.display='none';menu.style.display='flex';status.textContent='Sessão encerrada.';});
- }catch(e){console.error(e);status.textContent='Não foi possível iniciar AR: '+e.name;}
-});
+let modelReady=false,loading=false; const loader=new GLTFLoader();
+function loadModel(){if(loading||modelReady)return;loading=true;status.textContent='Carregando modelo…';loader.load(GLB_URL,g=>{model.add(g.scene);g.scene.traverse(o=>{if(o.isMesh){o.frustumCulled=true;if(o.material)o.material.precision='mediump';}});modelReady=true;loading=false;status.textContent='Modelo carregado. Toque em ENTRAR EM AR.';},xhr=>{if(xhr.total)status.textContent=`Carregando modelo… ${Math.round(xhr.loaded/xhr.total*100)}%`;},err=>{console.error(err);loading=false;status.textContent='Erro ao carregar o modelo 3D.';});}
+arBtn.addEventListener('click',async()=>{if(!modelReady){if(!loading)loadModel();else status.textContent='Aguarde o modelo terminar de carregar.';return;}if(!navigator.xr||!(await navigator.xr.isSessionSupported('immersive-ar'))){status.textContent='Este navegador/dispositivo não oferece AR imersivo.';return;}try{const session=await navigator.xr.requestSession('immersive-ar',{requiredFeatures:['local-floor'],optionalFeatures:['hit-test','unbounded','dom-overlay'],domOverlay:{root:document.body}});await renderer.xr.setSession(session);menu.style.display='none';hint.style.display='block';session.addEventListener('end',()=>{hint.style.display='none';menu.style.display='flex';status.textContent='Sessão encerrada.';});}catch(e){console.error(e);status.textContent='Não foi possível iniciar AR: '+e.name;}});
 renderer.setAnimationLoop(()=>renderer.render(scene,camera));
 addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
 </script>
