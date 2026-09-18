@@ -17,7 +17,7 @@ button{border:0;border-radius:13px;padding:15px 20px;margin:5px;font-size:16px;f
 #ar{width:100%;margin:0;background:#20b65a;color:#fff;transition:opacity .2s}
 #ar:disabled{opacity:.55}
 .note{margin:18px 0 0;color:#888;font-size:12px;line-height:1.4}
-#hint{position:fixed;z-index:5;left:50%;top:14px;transform:translateX(-50%);display:none;color:#fff;background:#000b;padding:9px 13px;border-radius:10px;text-align:center;font-size:13px}
+#hint{position:fixed;z-index:5;left:50%;top:14px;transform:translateX(-50%);display:none;color:#fff;background:#000b;padding:9px 13px;border-radius:10px;text-align:center;font-size:13px}\n#exit{position:fixed;z-index:6;right:14px;top:14px;display:none;background:#000b;color:#fff;padding:10px 14px;border:1px solid #fff3;border-radius:10px;font-size:13px;font-weight:800}
 </style>
 <script type="importmap">
 {"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"}}
@@ -32,13 +32,13 @@ button{border:0;border-radius:13px;padding:15px 20px;margin:5px;font-size:16px;f
 <button id="ar">CARREGAR MODELO</button>
 <p class="note">A câmera mostrará o ambiente real enquanto a casa virtual permanece posicionada no espaço.</p>
 </div></div>
-<div id="hint">AR ativo • caminhe devagar e observe a casa em relação ao ambiente real</div>
+<div id="hint">AR ativo • caminhe devagar e observe a casa em relação ao ambiente real</div><button id="exit">SAIR DO AR</button>
 <script type="module">
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 
 const GLB_URL='https://pub-6366228087a648a1ade223d3b3308418.r2.dev/Brooklyn-Studio-otimizado-v2.glb';
-const menu=document.querySelector('#menu'),status=document.querySelector('#status'),arBtn=document.querySelector('#ar'),hint=document.querySelector('#hint');
+const menu=document.querySelector('#menu'),status=document.querySelector('#status'),arBtn=document.querySelector('#ar'),hint=document.querySelector('#hint'),exitBtn=document.querySelector('#exit');
 
 const scene=new THREE.Scene();
 const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.01,100);
@@ -108,7 +108,7 @@ arBtn.addEventListener('click',async()=>{
     await renderer.xr.setSession(session);
     arSession=true;
     menu.style.display='none';
-    hint.style.display='block';
+    hint.style.display='block';\n    exitBtn.style.display='block';
     session.addEventListener('end',()=>{
       arSession=false;
       hint.style.display='none';
@@ -125,7 +125,7 @@ arBtn.addEventListener('click',async()=>{
   }
 });
 
-renderer.setAnimationLoop(()=>{
+exitBtn.addEventListener('click',()=>{\n  if(renderer.xr.isPresenting) renderer.xr.getSession()?.end();\n});\n\nrenderer.setAnimationLoop(()=>{
   if(modelReady||arSession)renderer.render(scene,camera);
 });
 
