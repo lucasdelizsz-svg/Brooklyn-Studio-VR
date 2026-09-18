@@ -13,7 +13,6 @@ button{border:0;border-radius:12px;padding:14px 20px;margin:6px;font-size:16px;f
 #ar{background:#20b65a;color:#fff}
 #ar:disabled{opacity:.55}
 #status{font-size:14px;opacity:.9;line-height:1.4}
-#hint{position:fixed;z-index:5;left:50%;top:14px;transform:translateX(-50%);display:none;color:#fff;background:#000b;padding:9px 13px;border-radius:10px;text-align:center;font-size:13px}
 </style>
 <script type="importmap">
 {"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"}}
@@ -24,18 +23,17 @@ button{border:0;border-radius:12px;padding:14px 20px;margin:6px;font-size:16px;f
 <h1>Brooklyn Studio AR</h1>
 <p id="status">Teste de desempenho.</p>
 <button id="ar">ENTRAR EM AR</button>
-<p>Esta é uma cópia de teste com renderização mais simples. A versão principal não foi alterada.</p>
+<p>Esta é uma cópia de teste. A versão principal não foi alterada.</p>
 </div></div>
-<div id="hint">AR ativo • teste caminhando pelo ambiente</div>
 <script type="module">
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 
 const GLB_URL='https://pub-6366228087a648a1ade223d3b3308418.r2.dev/Brooklyn%2520Studio%2520C%25C3%25B3pia%2520-%2520otimizado.glb';
-const menu=document.querySelector('#menu'),status=document.querySelector('#status'),arBtn=document.querySelector('#ar'),hint=document.querySelector('#hint');
+const menu=document.querySelector('#menu'),status=document.querySelector('#status'),arBtn=document.querySelector('#ar');
 
 const scene=new THREE.Scene();
-const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.01,1000);
+const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.01,100);
 const renderer=new THREE.WebGLRenderer({antialias:false,alpha:true,powerPreference:'high-performance',precision:'mediump'});
 renderer.setPixelRatio(Math.min(devicePixelRatio,1.25));
 renderer.setSize(innerWidth,innerHeight);
@@ -51,7 +49,7 @@ const model=new THREE.Group();
 scene.add(model);
 model.position.set(-5.9,0,7.3);
 
-let modelReady=false,loading=false;
+let modelReady=false,loading=false,arSession=false;
 const loader=new GLTFLoader();
 
 function loadModel(){
@@ -65,8 +63,11 @@ function loadModel(){
       if(o.isMesh){
         o.frustumCulled=true;
         if(o.material)o.material.precision='mediump';
+        o.matrixAutoUpdate=false;
       }
     });
+    model.updateMatrixWorld(true);
+    model.matrixAutoUpdate=false;
     modelReady=true;
     loading=false;
     arBtn.disabled=false;
@@ -90,14 +91,13 @@ async function enterAR(){
   try{
     const session=await navigator.xr.requestSession('immersive-ar',{
       requiredFeatures:['local-floor'],
-      optionalFeatures:['hit-test','unbounded','dom-overlay'],
-      domOverlay:{root:document.body}
+      optionalFeatures:['hit-test','unbounded']
     });
     await renderer.xr.setSession(session);
+    arSession=true;
     menu.style.display='none';
-    hint.style.display='block';
     session.addEventListener('end',()=>{
-      hint.style.display='none';
+      arSession=false;
       menu.style.display='flex';
       status.textContent='Sessão encerrada.';
     });
@@ -106,8 +106,13 @@ async function enterAR(){
     status.textContent='Não foi possível iniciar AR: '+e.name;
   }
 }
+
 arBtn.addEventListener('click',enterAR);
-renderer.setAnimationLoop(()=>renderer.render(scene,camera));
+
+renderer.setAnimationLoop(()=>{
+  if(modelReady||arSession)renderer.render(scene,camera);
+});
+
 addEventListener('resize',()=>{
   camera.aspect=innerWidth/innerHeight;
   camera.updateProjectionMatrix();
