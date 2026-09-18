@@ -7,13 +7,20 @@
 <style>
 html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#111;font-family:system-ui,sans-serif}
 canvas{display:block;width:100%;height:100%}
-#menu{position:fixed;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg,#050505e8,#151515f5);color:#fff}
-.card{width:min(430px,calc(100% - 40px));box-sizing:border-box;margin:20px;padding:30px 24px;text-align:center;background:#191919;border:1px solid #ffffff18;border-radius:22px;box-shadow:0 18px 60px #0008}
-.logo{width:72px;height:72px;margin:0 auto 18px;border-radius:18px;background:linear-gradient(145deg,#20b65a,#11743a);display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:900;letter-spacing:-2px}
-h1{margin:0 0 8px;font-size:29px;letter-spacing:-.6px}
-.sub{margin:0 0 22px;color:#bbb;font-size:15px;line-height:1.45}
+#menu{position:fixed;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 18%,#193b2b 0,#0b120f 34%,#050505 72%);color:#fff}
+.card{width:min(520px,calc(100% - 32px));box-sizing:border-box;margin:16px;padding:34px 28px 28px;text-align:center;background:#101512eF;border:1px solid #ffffff18;border-radius:26px;box-shadow:0 22px 70px #0009;backdrop-filter:blur(8px)}
+.logo{width:68px;height:68px;margin:0 auto 16px;border-radius:18px;background:linear-gradient(145deg,#20b65a,#11743a);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:900;letter-spacing:-2px}
+.badge{display:inline-block;margin:0 0 12px;padding:6px 10px;border:1px solid #20b65a66;border-radius:999px;color:#7ee8a7;font-size:11px;font-weight:800;letter-spacing:1.2px}
+h1{margin:0 0 8px;font-size:32px;letter-spacing:-.8px}
+.sub{max-width:390px;margin:0 auto 24px;color:#c2c8c4;font-size:15px;line-height:1.55}
+.arch{position:relative;width:100%;height:116px;margin:0 auto 24px;border-radius:18px;background:linear-gradient(180deg,#18211c,#0d1210);border:1px solid #ffffff12;overflow:hidden}
+.arch:before,.arch:after{content:"";position:absolute;left:12%;right:12%;height:1px;background:#7ee8a733}
+.arch:before{top:28px}.arch:after{bottom:24px}
+.arch span{position:absolute;bottom:24px;left:18%;width:64%;height:52px;border:2px solid #7ee8a766;border-bottom:0;transform:perspective(160px) rotateX(7deg);opacity:.9}
+.arch span:before{content:"";position:absolute;left:12%;right:12%;top:15px;height:22px;border:1px solid #7ee8a755}
+.arch span:after{content:"";position:absolute;left:49%;top:15px;width:1px;height:37px;background:#7ee8a755}
 button{border:0;border-radius:13px;padding:15px 20px;margin:5px;font-size:16px;font-weight:800}
-#ar{width:100%;margin:0;background:#20b65a;color:#fff}
+#ar{width:100%;margin:0;background:#20b65a;color:#fff;box-shadow:0 8px 24px #20b65a33}
 .note{margin:18px 0 0;color:#888;font-size:12px;line-height:1.4}
 #status{font-size:14px;opacity:.9;line-height:1.4}
 #hint{position:fixed;z-index:5;left:50%;top:14px;transform:translateX(-50%);display:none;color:#fff;background:#000b;padding:9px 13px;border-radius:10px;text-align:center;font-size:13px}
@@ -25,8 +32,10 @@ button{border:0;border-radius:13px;padding:15px 20px;margin:5px;font-size:16px;f
 <body>
 <div id="menu"><div class="card">
 <div class="logo">BS</div>
+<div class="badge">EXPERIÊNCIA IMERSIVA</div>
 <h1>Brooklyn Studio</h1>
-<p class="sub">Visualize a casa em realidade aumentada no espaço ao seu redor.</p>
+<p class="sub">Explore o modelo arquitetônico em realidade aumentada e veja a casa integrada ao espaço ao seu redor.</p>
+<div class="arch" aria-hidden="true"><span></span></div>
 <p id="status">Toque no botão para começar.</p>
 <button id="ar">CARREGAR MODELO</button>
 <p class="note">A câmera mostrará o ambiente real enquanto a casa virtual permanece posicionada no espaço.</p>
