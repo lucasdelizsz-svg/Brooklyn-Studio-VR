@@ -13,6 +13,12 @@ button{border:0;border-radius:12px;padding:14px 20px;margin:6px;font-size:16px;f
 #ar{background:#20b65a;color:#fff}
 #status{font-size:14px;opacity:.9;line-height:1.4}
 #hint{position:fixed;z-index:5;left:50%;top:14px;transform:translateX(-50%);display:none;color:#fff;background:#000b;padding:9px 13px;border-radius:10px;text-align:center;font-size:13px}
+#move{position:fixed;z-index:6;left:50%;bottom:24px;transform:translateX(-50%);display:none;grid-template-columns:64px 64px 64px;grid-template-rows:58px 58px 58px;gap:5px}
+#move button{margin:0;padding:0;width:64px;height:58px;background:#000b;color:#fff;font-size:24px;border:1px solid #ffffff55}
+#move .up{grid-column:2;grid-row:1}
+#move .left{grid-column:1;grid-row:2}
+#move .down{grid-column:2;grid-row:3}
+#move .right{grid-column:3;grid-row:2}
 </style>
 <script type="importmap">
 {"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"}}
@@ -25,13 +31,19 @@ button{border:0;border-radius:12px;padding:14px 20px;margin:6px;font-size:16px;f
 <button id="ar">ENTRAR EM AR</button>
 <p>O ambiente real continuará visível pela câmera. Caminhe fisicamente e observe a casa virtual permanecer no espaço.</p>
 </div></div>
-<div id="hint">AR ativo • caminhe devagar e observe a casa em relação ao ambiente real</div>
+<div id="hint">AR ativo • use as setas para ajustar a posição da casa</div>
+<div id="move" aria-label="Mover casa">
+<button class="up" data-dz="-0.25" aria-label="Mover para frente">▲</button>
+<button class="left" data-dx="-0.25" aria-label="Mover para esquerda">◀</button>
+<button class="down" data-dz="0.25" aria-label="Mover para trás">▼</button>
+<button class="right" data-dx="0.25" aria-label="Mover para direita">▶</button>
+</div>
 <script type="module">
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 
 const GLB_URL='https://pub-6366228087a648a1ade223d3b3308418.r2.dev/Brooklyn-Studio-otimizado-v2.glb';
-const menu=document.querySelector('#menu'),status=document.querySelector('#status'),arBtn=document.querySelector('#ar'),hint=document.querySelector('#hint');
+const menu=document.querySelector('#menu'),status=document.querySelector('#status'),arBtn=document.querySelector('#ar'),hint=document.querySelector('#hint'),move=document.querySelector('#move');
 
 const scene=new THREE.Scene();
 const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.01,100);
@@ -83,6 +95,16 @@ function loadModel(){
   });
 }
 
+document.querySelectorAll('#move button').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    const dx=Number(btn.dataset.dx||0);
+    const dz=Number(btn.dataset.dz||0);
+    model.position.x+=dx;
+    model.position.z+=dz;
+    model.updateMatrixWorld(true);
+  });
+});
+
 arBtn.addEventListener('click',async()=>{
   if(!modelReady){loadModel();return;}
   if(!navigator.xr||!(await navigator.xr.isSessionSupported('immersive-ar'))){
@@ -98,9 +120,11 @@ arBtn.addEventListener('click',async()=>{
     arSession=true;
     menu.style.display='none';
     hint.style.display='block';
+    move.style.display='grid';
     session.addEventListener('end',()=>{
       arSession=false;
       hint.style.display='none';
+      move.style.display='none';
       menu.style.display='flex';
       status.textContent='Sessão encerrada.';
     });
